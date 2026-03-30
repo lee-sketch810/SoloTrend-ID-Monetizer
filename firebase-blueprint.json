@@ -1,0 +1,26 @@
+{
+  "entities": {
+    "TrendIdea": {
+      "title": "Trend-based Monetization Idea",
+      "description": "An idea generated from real-time trends for an instructional designer.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "category": { "type": "string", "enum": ["App", "E-book", "YouTube", "Blog", "Threads"] },
+        "trendSource": { "type": "string" },
+        "description": { "type": "string" },
+        "monetizationStrategy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string" }
+      },
+      "required": ["title", "category", "description", "userId"]
+    }
+  },
+  "firestore": {
+    "/ideas": {
+      "schema": "TrendIdea",
+      "description": "Collection of monetization ideas."
+    }
+  }
+}

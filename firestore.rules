@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: ideas
+    // Fields:
+    //   - title: string (required)
+    //   - category: string (required, enum)
+    //   - trendSource: string
+    //   - description: string (required)
+    //   - monetizationStrategy: string
+    //   - createdAt: timestamp (required)
+    //   - userId: string (required)
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidIdea(data) {
+      return data.keys().hasAll(['title', 'category', 'description', 'userId', 'createdAt']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+             data.category in ['App', 'E-book', 'YouTube', 'Blog', 'Threads'] &&
+             data.description is string && data.description.size() > 0 &&
+             data.userId == request.auth.uid &&
+             data.createdAt is timestamp;
+    }
+
+    match /ideas/{ideaId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && isValidIdea(request.resource.data);
+      allow update: if isOwner(resource.data.userId) && isValidIdea(request.resource.data) && 
+                      request.resource.data.userId == resource.data.userId;
+      allow delete: if isOwner(resource.data.userId);
+    }
+    
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+  }
+}
