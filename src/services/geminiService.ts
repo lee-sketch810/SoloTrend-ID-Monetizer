@@ -1,13 +1,30 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const apiKeys = [
+  process.env.GEMINI_API_KEY,
+  process.env.GEMINI_API_KEY2
+].filter(Boolean) as string[];
+
+let currentKeyIndex = 0;
+
+function getAI() {
+  const apiKey = apiKeys[currentKeyIndex];
+  return new GoogleGenAI({ apiKey });
+}
+
+function rotateKey() {
+  if (apiKeys.length > 1) {
+    currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length;
+    console.warn(`Quota limit reached. Switching to API Key ${currentKeyIndex + 1}`);
+  }
+}
 
 // Retry helper for API calls
-async function withRetry<T>(fn: () => Promise<T>, maxRetries = 7): Promise<T> {
+async function withRetry<T>(fn: (ai: GoogleGenAI) => Promise<T>, maxRetries = 7): Promise<T> {
   let lastError: any;
   for (let i = 0; i < maxRetries; i++) {
     try {
-      return await fn();
+      return await fn(getAI());
     } catch (error: any) {
       lastError = error;
       const errorStr = JSON.stringify(error);
@@ -19,6 +36,9 @@ async function withRetry<T>(fn: () => Promise<T>, maxRetries = 7): Promise<T> {
         errorStr.includes("RESOURCE_EXHAUSTED");
         
       if (isQuotaError && i < maxRetries - 1) {
+        // Switch key on quota error
+        rotateKey();
+        
         // More aggressive backoff for quota errors
         const delay = Math.pow(2.5, i + 1) * 1000 + Math.random() * 2000;
         console.warn(`Quota exceeded. Retrying in ${Math.round(delay)}ms... (Attempt ${i + 1}/${maxRetries})`);
@@ -40,7 +60,7 @@ export interface MonetizationIdea {
 }
 
 export async function generateMonetizationIdeas(userContext: string, searchTerm?: string, expertise?: string): Promise<MonetizationIdea[]> {
-  return withRetry(async () => {
+  return withRetry(async (ai) => {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `
@@ -105,7 +125,7 @@ export async function generateMonetizationIdeas(userContext: string, searchTerm?
 }
 
 export async function generateDetailedContent(idea: MonetizationIdea): Promise<string> {
-  return withRetry(async () => {
+  return withRetry(async (ai) => {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `
@@ -203,7 +223,7 @@ ${content}
 }
 
 export async function developIdeaWithFeedback(idea: MonetizationIdea, currentContent: string, feedback: string): Promise<string> {
-  return withRetry(async () => {
+  return withRetry(async (ai) => {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `
@@ -259,7 +279,7 @@ export async function fetchTrendAnalysis(searchTerm: string = "1인 지식 창�
     return trendCache[cacheKey].data;
   }
 
-  return withRetry(async () => {
+  return withRetry(async (ai) => {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `
